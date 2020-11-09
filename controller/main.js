@@ -27,7 +27,7 @@ class MainController {
         if(conf.enableLiquidator) Liquidator.start(this.liquidations);
         if(conf.enableRollover) Rollover.start(this.positions);
         if(conf.enableArbitrage) Arbitrage.start();
-        Monitor.start(this.positions, this.liquidations, PosScanner);
+        Monitor.start(this.positions, this.liquidations);
 
         io.on('connection', (socket) => {
             socket.on('getSignals', async (cb) => Monitor.getSignals(cb));

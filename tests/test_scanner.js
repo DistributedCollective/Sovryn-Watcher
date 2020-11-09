@@ -28,7 +28,7 @@ describe('Scanner', async () => {
 
             while (true) {
                 const pos = await PosScanner.loadActivePositions(from, to);
-               console.log(pos);
+               //console.log(pos);
                 if (pos && pos.length > 0) {
                     console.log(pos.length + " active positions found");
                     PosScanner.addPosition(pos);
@@ -58,6 +58,24 @@ describe('Scanner', async () => {
                 let margin = PosScanner.positions[p].currentMargin/1e18;
                 let mMargin = PosScanner.positions[p].maintenanceMargin/1e18;
                 if(margin<20) console.log("Current margin: "+margin+" maintenance margin: "+mMargin+", loanId: "+p);
+            }
+        });
+
+        it('should find tx details from given loanId', async () => {
+            for(let p in PosScanner.positions){
+                C.contractSovryn.getPastEvents('Trade', {
+                    fromBlock: 1205639,
+                    toBlock: 'latest',
+                    filter: {loanId: p}
+                }, (error, events) => {
+                    if (error) {
+                    console.log("had an error"); console.log(error);
+                    }
+                    console.log("event")
+                    console.log(events);
+                    assert(true);
+                });
+                break;
             }
         });
     });

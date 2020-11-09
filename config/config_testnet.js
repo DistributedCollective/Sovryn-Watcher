@@ -1,4 +1,5 @@
 import telegramBot from '../secrets/telegram.js';
+import mailServiceApiKey from '../secrets/mailservice';
 
 export default  {
     serverPort: 3000,
@@ -24,5 +25,7 @@ export default  {
     thresholdArbitrage: 2, //in %
     errorBotTelegram: telegramBot,
     sovrynInternalTelegramId: -1001308978723,
-    healthMonitorPort: 3 //results in 3003
+    healthMonitorPort: 3, //results in 3003
+    mailServiceHost: "http://localhost:3008", //"https://mailservice.sovryn.app",
+    mailServiceApiKey: mailServiceApiKey
 }

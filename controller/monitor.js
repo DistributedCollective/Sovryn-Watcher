@@ -7,15 +7,15 @@ const Telegram = require('telegraf/telegram');
 import A from '../secrets/accounts';
 import C from './contract';
 import conf from '../config/config';
+import U from '../util/helper';
 
 class MonitorController {
 
-    start(positions, liquidations, posScanner) {
+    start(positions, liquidations) {
         this.positions = positions;
         this.liquidations = liquidations;
-        this.posScanner = posScanner;
 
-        if(conf.errorBotTelegram!="") {
+        if (conf.errorBotTelegram != "") {
             this.telegramBotWatcher = new Telegram(conf.errorBotTelegram);
             let p = this;
             setInterval(() => {
@@ -140,6 +140,59 @@ class MonitorController {
     //todo: add from-to, to be called from client
     async getOpenLiquidationsDetails(cb) {
         if (typeof cb === "function") cb(this.liquidations);
+    }
+
+
+    /**
+     * 
+     */
+    async marginCalls() {
+        while (true) {
+            for (let p in this.positions) {
+                if (this.positions[p].currentMargin < this.positions[p].maintenanceMargin * 0.9) {
+                    const tx = await this.getTransactionDetails(p);
+                    const merged = { ...tx, ...this.positions[p] };
+                    if (tx) this.sendMarginCall(merged);
+                }
+            }
+            await U.wasteTime(60 * 5);
+        }
+    }
+
+    getTransactionDetails(loanId) {
+        return new Promise(resolve => {
+            C.contractSovryn.getPastEvents('Trade', {
+                fromBlock: 1205639,
+                toBlock: 'latest',
+                filter: { "loanId": loanId }
+            }, (error, events) => {
+                if (error) {
+                    console.log("had an error"); console.log(error);
+                }
+                //console.log("event")
+                //console.log(events);
+                if (events && events.length > 0) resolve(events[0]);
+                else resolve(false);
+            });
+        });
+    }
+
+    sendMarginCall(tx) {
+        try {
+            const res = await axios.post(conf.mailServerHost + "/sendMarginCall", {
+                tx: tx
+            }, {
+                headers: {
+                    Authorization: conf.mailServiceApiKey
+                }
+            });
+            console.log("sent margin call");
+            console.log(res.data);
+        }
+        catch (e) {
+            console.log("error on sending margin call");
+            console.log(e);
+        }
     }
 }
 
