@@ -1,6 +1,7 @@
 /**
- *  Accepts client requests and checks the health of the watcher in 60s interval
- *  If the system is not healthy it sends a message to the telegram group
+ * The monitor hecks the health of the watcher in 60s interval, provides a simple frontend to observe wallet Doc and RBtc balances and
+ * if enabled sends email notifications on liquidations and margin calls
+ * Errors on transactions or warnings about low wallet balances are sent to a telegram group
  */
 const axios = require('axios');
 const Telegram = require('telegraf/telegram');
@@ -8,8 +9,13 @@ import A from '../secrets/accounts';
 import C from './contract';
 import conf from '../config/config';
 import U from '../util/helper';
+import Arbitrage from './arbitrage';
 
 class MonitorController {
+    constructor(){
+        this.marginCalls={};
+        this.liquidationNotifications={};
+    }
 
     start(positions, liquidations) {
         this.positions = positions;
@@ -144,19 +150,38 @@ class MonitorController {
 
 
     /**
-     * 
+     * todo: define correct threshold
+     * todo2: add user queue, send max 1 mail /3h
      */
     async marginCalls() {
         while (true) {
             for (let p in this.positions) {
                 if (this.positions[p].currentMargin < this.positions[p].maintenanceMargin * 0.9) {
                     const tx = await this.getTransactionDetails(p);
-                    const merged = { ...tx, ...this.positions[p] };
-                    if (tx) this.sendMarginCall(merged);
+                    if(!tx || !tx.returnValues || !tx.returnValues.user) continue;
+
+                    const asset = this.positions[p].loanToken==conf.testTokenRBTC ? "Btc":"Doc"
+
+                    const params = {
+                        "ASSET": asset, 
+                        "LIQUIDATION_PRICE": this.calculateLiquidationPrice(tx.returnValues.leverage, asset),
+                        "TRANSACTION_HASH": tx.transactionHash,
+                        "LEVERAGE": tx.entryLeverage,
+                        "POSITION": C.web3.fromWei(this.positions[p].principal.toString(), "Ether").toFixed(5),
+                        "POSITION_SIZE": tx.positionSize,
+                        "CURRENT_MARGIN": C.web3.fromWei(this.positions[p].currentMargin.toString(), "Ether").toFixed(5),
+                        "MAINTENANCE_MARGIN": C.web3.fromWei(this.positions[p].maintenanceMargin.toString(), "Ether").toFixed(5)
+                    };
+
+                    this.sendMarginCall({user:tx.returnValues.user, params:params});
                 }
             }
             await U.wasteTime(60 * 5);
         }
+    }
+
+    //send mail if user got liquidated
+    async liquidationNotification(){
     }
 
     getTransactionDetails(loanId) {
@@ -177,10 +202,19 @@ class MonitorController {
         });
     }
 
-    sendMarginCall(tx) {
+    /**
+     * Mailservice expects parameters in the form
+     * {
+     *  user: "user-wallet-address",
+     *  params: {tx-details}
+     * }
+     */
+    sendMarginCall(pos) {
+        if(!this.logMarginCallNotifications(pos.user)) return;
+        
         try {
             const res = await axios.post(conf.mailServerHost + "/sendMarginCall", {
-                tx: tx
+                position: pos
             }, {
                 headers: {
                     Authorization: conf.mailServiceApiKey
@@ -194,6 +228,26 @@ class MonitorController {
             console.log(e);
         }
     }
+
+    logMarginCallNotifications(userAdr){
+        const threeHoursAgo = Date.now()-(1000*60*60*3);
+        if(this.marginCalls[userAdr] && this.marginCalls[userAdr]>threeHoursAgo) return false;
+        this.marginCalls[userAdr] = Date.now();
+        return true;
+    }
+
+
+    /** 
+     * Helpers
+     */
+     calculateLiquidationPrice(leverage, posType){
+        const amount = C.web3.utils.toWei("1", "Ether");
+        const priceInWei = await Arbitrage.getPriceFromPriceFeed(C.contractSwaps, conf.testTokenRBTC, conf.docToken, amount);
+    
+        const maxPriceMovement = 1 - ((1 + 0.15) * (leverage - 1) / leverage);
+        if(posType=="Btc") return (1 - maxPriceMovement) * priceInWei;
+        else return (1 + maxPriceMovement) * priceInWei;
+     }
 }
 
 export default new MonitorController();
