@@ -20,6 +20,7 @@ class MonitorController {
     start(positions, liquidations) {
         this.positions = positions;
         this.liquidations = liquidations;
+        this.startMarginCalls();
 
         if (conf.errorBotTelegram != "") {
             this.telegramBotWatcher = new Telegram(conf.errorBotTelegram);
@@ -150,16 +151,16 @@ class MonitorController {
 
 
     /**
-     * todo: define correct threshold
-     * todo2: add user queue, send max 1 mail /3h
+     * Start margin calls detection loop
+     * 
      */
-    async marginCalls() {
+    async startMarginCalls() {
         while (true) {
             for (let p in this.positions) {
                 if (this.positions[p].currentMargin < this.positions[p].maintenanceMargin * 0.9) {
                     const tx = await this.getTransactionDetails(p);
                     if(!tx || !tx.returnValues || !tx.returnValues.user) continue;
-
+                    console.log("Detected position with margin < maintenance margin: "+p);
                     const asset = this.positions[p].loanToken==conf.testTokenRBTC ? "Btc":"Doc"
 
                     const params = {
@@ -192,7 +193,7 @@ class MonitorController {
                 filter: { "loanId": loanId }
             }, (error, events) => {
                 if (error) {
-                    console.log("had an error"); console.log(error);
+                    console.error("had an error"); console.error(error);
                 }
                 //console.log("event")
                 //console.log(events);
@@ -211,7 +212,7 @@ class MonitorController {
      */
     sendMarginCall(pos) {
         if(!this.logMarginCallNotifications(pos.user)) return;
-        
+        console.log("Sending margin call to "+pos.user);
         try {
             const res = await axios.post(conf.mailServerHost + "/sendMarginCall", {
                 position: pos

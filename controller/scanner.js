@@ -23,8 +23,6 @@ class PositionScanner {
      * Start endless loop by loading all open positions from the contract until the end is reached, then start from scratch
      * It is necessary to re-read from position 0 on every run because the position of open positions can change on the contract.
      * Poosible optimization: parse the event logs after reaching current state instead of quering "getActiveLoans".
-     * 
-     * The performance of this overhead need to be tested and optimized if needed
      */
     async processPositions() {
         console.log("Start processing active positions in "+conf.scannerInterval+" s interval");
@@ -45,7 +43,6 @@ class PositionScanner {
             }
             //empty array -> read all loans -> done
             else if(pos && pos.length==0) {
-                
                 console.log(Object.keys(this.positions).length+" active positions found");
                 //waiting time between rounds like specified
                 await U.wasteTime(conf.scannerInterval);
