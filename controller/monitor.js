@@ -157,7 +157,7 @@ class MonitorController {
     async startMarginCalls() {
         while (true) {
             for (let p in this.positions) {
-                if (this.positions[p].currentMargin < this.positions[p].maintenanceMargin * 0.9) {
+                if (this.positions[p].currentMargin < this.positions[p].maintenanceMargin * 1.03) {
                     const tx = await this.getTransactionDetails(p);
                     if(!tx || !tx.returnValues || !tx.returnValues.user) continue;
                     console.log("Detected position with margin < maintenance margin: "+p);
@@ -210,7 +210,7 @@ class MonitorController {
      *  params: {tx-details}
      * }
      */
-    sendMarginCall(pos) {
+    async sendMarginCall(pos) {
         if(!this.logMarginCallNotifications(pos.user)) return;
         console.log("Sending margin call to "+pos.user);
         try {
@@ -230,6 +230,9 @@ class MonitorController {
         }
     }
 
+    /**
+     * Max 1 mail per 3h
+     */
     logMarginCallNotifications(userAdr){
         const threeHoursAgo = Date.now()-(1000*60*60*3);
         if(this.marginCalls[userAdr] && this.marginCalls[userAdr]>threeHoursAgo) return false;
@@ -241,7 +244,7 @@ class MonitorController {
     /** 
      * Helpers
      */
-     calculateLiquidationPrice(leverage, posType){
+     async calculateLiquidationPrice(leverage, posType){
         const amount = C.web3.utils.toWei("1", "Ether");
         const priceInWei = await Arbitrage.getPriceFromPriceFeed(C.contractSwaps, conf.testTokenRBTC, conf.docToken, amount);
     
