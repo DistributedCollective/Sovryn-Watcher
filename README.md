@@ -82,6 +82,17 @@ http://your-ip:3000/ to see some liquidation processing info
 The Sovryn node uses pm2 for log handling.    
 To enable Log-rotationdo "pm2 install pm2-logrotate" and afterwards "pm2 set pm2-logrotate:max_size 1000K"   
 
+
+### Run Docker-Compose
+**Please add the files to secret folder before runnning the docker-compose**  
+
+To run the app via docker   
+```
+docker-compose up -d --build 
+```
+
+
+
 License
 ----
 
